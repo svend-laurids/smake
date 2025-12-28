@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+
+scriptdir=$(realpath $(dirname $0))
+cd "$scriptdir"
+
+clean=false
+debug=false
+
+for arg in "$@"; do
+    case "$arg" in
+        "clean")
+            clean=true
+            ;;
+        "debug")
+            debug=true
+            ;;
+        *)
+            echo "ERROR: Unkown argument $arg"
+            exit 1
+    esac
+done
+
+if $clean; then
+    echo "clean"
+fi
+
+if $debug; then
+    echo "debug"
+fi
+
+
+
+
+declare -a srcfile 
+declare -a srcdate 
+declare -a objfile 
+declare -a objdate 
+
+srcdir="$scriptdir"
+srcdir+="/src"
+objdir="$scriptdir"
+objdir+="/obj"
+builddir="$scriptdir"
+builddir+="/build"
+target="$builddir"
+target+="/main"
+
+number_of_files=0
+outdated_files=0
+
+changed_srcs=""
+objs=""
+
+for src_file in "$srcdir"/*.c; do
+    base=$(basename "$src_file" .c)
+    srcfile[$number_of_files]="$srcdir/$base.c"
+    srcdate[$number_of_files]=$(date -r "${srcfile[$number_of_files]}" +"%s")
+    objfile[$number_of_files]="$objdir/$base.o"
+    objs+="${objfile[$number_of_files]} "
+    if [[ -f "${objfile[$number_of_files]}" ]]; then
+        objdate[$number_of_files]=$(date -r "${objfile[$number_of_files]}" +"%s")
+    else
+        objdate[$number_of_files]=0
+    fi
+    ((number_of_files++))
+done
+
+for ((i=0; i<number_of_files; i++)); do
+    if [[ ${srcdate[$i]} > ${objdate[$i]} ]]; then 
+        changed_srcs+="${srcfile[$i]} "
+        ((outdated_files++))
+    fi
+done
+
+if (( $outdated_files > 0 )); then
+    cd $objdir
+    gcc -c $changed_srcs
+    echo "Compiling $changed_srcs..."
+    gcc -o $target $objs
+    echo "Building $target..."
+elif [[ ! -f "$target" ]]; then
+    gcc -o $target $objs
+    echo "Target missing, building $target..."
+else
+    echo "All files are up to date..."
+fi
